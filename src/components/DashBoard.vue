@@ -1,6 +1,5 @@
 <template>
     <div>
-        <p>dsfdfds</p>
         <div id="chartContainer"></div>
         <select name="select" id="select" v-model="dayChoice" @change="updateChartData">
             <option value="60">Last 60 days</option>
@@ -9,29 +8,108 @@
             <option value="7">Last 7 days</option>
         </select>
     </div>
+    <table v-if="showTable" border="1" class="styled-table">
+        <thead>
+            <tr>
+                <th>SKU</th>
+                <th>Product Name</th>
+                <th>{{ this.categoriesArr[this.selectedColumns[0]] }} Sales / Units</th>
+                <th v-if="this.selectedColumns.length == 2">{{ this.categoriesArr[this.selectedColumns[1]] }} Sales / Units
+                </th>
+                <th>SKU Refund Rate</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr v-for="sku in tableData" :key="sku.sku">
+                <td>{{ sku.sku }}</td> <!--is a ist -->
+                <td>{{ sku.productName }}</td>
+                <td>{{ sku.amount }}</td>
+                <td v-if="this.selectedColumns.length == 2">{{ }}</td>
+                <td>refundRateDataWillBeAdded %</td>
+            </tr>
+        </tbody>
+    </table>
 </template>
 
 <script>
 import axios from 'axios'
 import DailySalesModel from './models/DailySalesModel.js';
 import Highcharts from 'highcharts';
-// import UserModel from './models/UserModel.js';
-// import HighchartsLine from 'highcharts/modules/series-line';
-
+import SkuDailySalesModel from './models/SkuDailySalesModel.js';
 
 export default {
     data() {
         return {
-            dailySalesArray: [],
             dayChoice: 7,
-            chartData: [5, 10, 15, 20, 25],
+            selectedColumns: [],
+            categoriesArr: [],
+            chartDataArray: [],
+            fbaShippingAmount: [],
+            showTable: false,
+            tableData: [],
+            pageNum: 1
         }
     },
     mounted() {
         this.setChartData();
-        // this.drawChart();
     },
     methods: {
+        async fetchDataForTable() {
+            const userObj = this.$store.getters.getUserInfo;
+            const accessToken = this.$store.getters.getBareerToken;
+            // console.log(accessToken);
+            const storeInfo = userObj.user.store;
+
+            storeInfo.map((storeItem) => {
+                let data = JSON.stringify({
+                    "marketplace": storeItem.marketplaceName,
+                    "sellerId": storeItem.storeId,
+                    "salesDate": this.categoriesArr[this.selectedColumns[0]],
+                    "salesDate2": this.selectedColumns.length == 2
+                        ? "" : this.categoriesArr[this.selectedColumns[1]],
+                    "pageSize": 30,
+                    "pageNumber": this.pageNum,
+                    "isDaysCompare": this.selectedColumns.length == 2 ? 0 : 1
+                });
+
+                console.log("my body", data)
+
+                let config = {
+                    method: 'post',
+                    maxBodyLength: Infinity,
+                    url: 'https://iapitest.eva.guru/data/daily-sales-sku-list/',
+                    headers: {
+                        'accept': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    data: data
+                };
+
+                axios.request(config)
+                    .then((response) => {
+                        console.log(response.data);
+
+                        const skuObj = new SkuDailySalesModel(response);
+                        console.log(skuObj);
+
+                        if (skuObj.data.item) {
+                            skuObj.data.item.forEach((skuModel) => {
+
+                                this.tableData.push({
+                                    sku: skuModel.sku,
+                                    productName: skuModel.productName,
+                                    amount: skuModel.amount
+                                });
+                            });
+
+                        }
+                    })
+                    .catch((error) => {
+                        console.log(error);
+                    });
+            });
+        },
         async setChartData() {
             const userObj = this.$store.getters.getUserInfo;
             const storeInfo = userObj.user.store;
@@ -116,6 +194,9 @@ export default {
             chartDataArray.push(profitData);
             chartDataArray.push(fbaAmountData);
             chartDataArray.push(fbmAmountData);
+            this.categoriesArr = categoriesArr;
+            this.chartDataArray = chartDataArray;
+            this.fbaShippingAmount = fbaShippingAmount
             // chartDataArray.push(fbaShippingAmount);
 
             // console.log("chartDataArray", chartDataArray);
@@ -125,7 +206,7 @@ export default {
 
         },
         drawChart(categoriesArr, chartDataArray, externalData) {
-            Highcharts.chart('chartContainer', {
+            var mychart = Highcharts.chart('chartContainer', {
                 chart: {
                     type: 'column'
                 },
@@ -156,7 +237,44 @@ export default {
                         stacking: 'normal',
                         dataLabels: {
                             enabled: true
-                        },
+                        }, events: {
+                            click: (event) => {
+                                const clickedColumnIndex = event.point.index;
+                                const chartInstance = mychart;
+                                const isSelected = this.selectedColumns.includes(clickedColumnIndex); //check selected before
+
+                                if (!isSelected) {
+                                    if (this.selectedColumns.length >= 2) {
+                                        console.log("errrrror", this.selectedColumns)
+                                    }
+                                    else {
+                                        this.selectedColumns.push(clickedColumnIndex);
+                                        event.point.update({
+                                            color: 'rgba(0, 128, 255, 0.7)',
+                                        });
+                                    }
+                                }
+                                else {
+                                    const ind = this.selectedColumns.indexOf(clickedColumnIndex)
+                                    if (ind > -1) {
+                                        this.selectedColumns.splice(ind, 1)
+                                    }
+                                    event.point.update({
+                                        color: null,
+                                    });
+                                }
+                                console.log(this.selectedColumns)
+
+                                this.showTable = this.selectedColumns.length > 0;
+                                this.fetchDataForTable();
+                                chartInstance.redraw()
+
+                            },
+                            stacking: 'normal',
+                            dataLabels: {
+                                enabled: true
+                            },
+                        }
                     }
                 },
                 tooltip: {
@@ -173,7 +291,6 @@ export default {
                             const shipping = externalData.data[index];
                             const totalSales = fbaSales + fbmSales;
                             const profit = dataPoint.name === 'Profit' ? totalSales : totalSales - fbaSales - fbmSales;
-                            console.log(shipping)
 
                             tooltip += 'Total Sales: $' + totalSales + '<br/>';
                             tooltip += 'Shipping: $' + shipping + '<br/>';
@@ -189,13 +306,32 @@ export default {
 
                 series: chartDataArray.map((seriesData) => ({
                     ...seriesData,
-                    visible: true // Make sure all series are visible
+                    visible: true,
                 }))
             });
         },
         updateChartData() {
+            this.showTable = false;
+            this.tableData = [];
+            this.selectedColumns = []
             this.setChartData();
         },
     }
 };
 </script>
+<style>
+.styled-table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.styled-table td {
+    padding: 8px;
+    text-align: left;
+    border: 1px solid #ddd;
+}
+
+.styled-table th {
+    background-color: #f2f2f2;
+}
+</style>
