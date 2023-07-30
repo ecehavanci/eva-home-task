@@ -1,5 +1,8 @@
 <template>
     <div>
+        <div v-if="loading" class="loading-indicator">
+            Loading...
+        </div>
         <div id="chartContainer"></div>
         <select name="select" id="select" v-model="dayChoice" @change="updateChartData">
             <option value="60">Last 60 days</option>
@@ -47,7 +50,8 @@ export default {
             fbaShippingAmount: [],
             showTable: false,
             tableData: [],
-            pageNum: 1
+            pageNum: 1,
+            loading: true
         }
     },
     mounted() {
@@ -104,6 +108,7 @@ export default {
                             });
 
                         }
+
                     })
                     .catch((error) => {
                         console.log(error);
@@ -111,6 +116,8 @@ export default {
             });
         },
         async setChartData() {
+            this.loading = true;
+
             const userObj = this.$store.getters.getUserInfo;
             const storeInfo = userObj.user.store;
             const accessToken = this.$store.getters.getBareerToken;
@@ -309,6 +316,8 @@ export default {
                     visible: true,
                 }))
             });
+            this.loading = false;
+
         },
         updateChartData() {
             this.showTable = false;
@@ -333,5 +342,15 @@ export default {
 
 .styled-table th {
     background-color: #f2f2f2;
+}
+
+.loading-indicator {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+    /* Adjust height as needed */
+    font-size: 18px;
+    color: #888;
 }
 </style>
