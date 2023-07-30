@@ -86,11 +86,21 @@ export default {
 
                         if (salesObj.item.length !== 0) {
                             salesObj.item.forEach((itemInLine) => {
-                                categoriesArr.push(itemInLine.date);
-                                profitData.data.push(itemInLine.profit);
-                                fbaAmountData.data.push(itemInLine.fbaAmount);
-                                fbmAmountData.data.push(itemInLine.fbmAmount);
-                                fbaShippingAmount.data.push(itemInLine.fbaShippingAmount);
+
+                                if (!categoriesArr.includes(itemInLine.date)) {
+                                    categoriesArr.push(itemInLine.date);
+                                    profitData.data.push(itemInLine.profit);
+                                    fbaAmountData.data.push(itemInLine.fbaAmount);
+                                    fbmAmountData.data.push(itemInLine.fbmAmount);
+                                    fbaShippingAmount.data.push(itemInLine.fbaShippingAmount);
+                                }
+                                else {
+                                    var index = categoriesArr.indexOf(itemInLine.date);
+                                    profitData.data[index] = profitData.data[index] + itemInLine.profit;
+                                    fbaAmountData.data[index] = fbaAmountData.data[index] + itemInLine.fbaAmount;
+                                    fbmAmountData.data[index] = fbmAmountData.data[index] + itemInLine.fbmAmount;
+                                    fbaShippingAmount.data[index] = fbaShippingAmount.data[index] + itemInLine.fbmAmount;
+                                }
                             });
                         }
                     } else {
